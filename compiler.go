@@ -2,12 +2,12 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/token"
+	"github.com/rizqme/gode/goja/token"
 	"sort"
 
-	"github.com/dop251/goja/ast"
-	"github.com/dop251/goja/file"
-	"github.com/dop251/goja/unistring"
+	"github.com/rizqme/gode/goja/ast"
+	"github.com/rizqme/gode/goja/file"
+	"github.com/rizqme/gode/goja/unistring"
 )
 
 type blockType int
@@ -1222,6 +1222,21 @@ func (c *compiler) compileLexicalDeclarations(list []ast.Statement, scopeDeclare
 				scopeDeclared = true
 			}
 			c.createLexicalIdBinding(cls.Class.Name.Name, false, int(cls.Class.Name.Idx)-1)
+		} else if exp, ok := st.(*ast.ExportDeclaration); ok {
+			// Handle export declarations containing lexical declarations
+			if lex, ok := exp.Declaration.(*ast.LexicalDeclaration); ok {
+				if !scopeDeclared {
+					c.newBlockScope()
+					scopeDeclared = true
+				}
+				c.createLexicalBindings(lex)
+			} else if cls, ok := exp.Declaration.(*ast.ClassDeclaration); ok {
+				if !scopeDeclared {
+					c.newBlockScope()
+					scopeDeclared = true
+				}
+				c.createLexicalIdBinding(cls.Class.Name.Name, false, int(cls.Class.Name.Idx)-1)
+			}
 		}
 	}
 	return scopeDeclared

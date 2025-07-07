@@ -1,10 +1,10 @@
 package goja
 
 import (
-	"github.com/dop251/goja/ast"
-	"github.com/dop251/goja/file"
-	"github.com/dop251/goja/token"
-	"github.com/dop251/goja/unistring"
+	"github.com/rizqme/gode/goja/ast"
+	"github.com/rizqme/gode/goja/file"
+	"github.com/rizqme/gode/goja/token"
+	"github.com/rizqme/gode/goja/unistring"
 )
 
 func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
@@ -49,6 +49,10 @@ func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
 		// note functions inside blocks are hoisted to the top of the block and are compiled using compileFunctions()
 	case *ast.ClassDeclaration:
 		c.compileClassDeclaration(v)
+	case *ast.ImportDeclaration:
+		c.compileImportDeclaration(v)
+	case *ast.ExportDeclaration:
+		c.compileExportDeclaration(v)
 	case *ast.WithStatement:
 		c.compileWithStatement(v, needResult)
 	case *ast.DebuggerStatement:
@@ -1124,4 +1128,64 @@ func (c *compiler) compileSwitchStatement(v *ast.SwitchStatement, needResult boo
 
 func (c *compiler) compileClassDeclaration(v *ast.ClassDeclaration) {
 	c.emitLexicalAssign(v.Class.Name.Name, int(v.Class.Class)-1, c.compileClassLiteral(v.Class, false))
+}
+
+func (c *compiler) compileImportDeclaration(v *ast.ImportDeclaration) {
+	// For now, compile import statements as calls to require()
+	// This provides basic functionality while maintaining CommonJS compatibility
+	
+	// Get the module specifier
+	moduleSpecifier := v.Source.Value
+	
+	// Emit a call to require(moduleSpecifier)
+	// This works with Gode's existing module resolution system
+	c.emitLiteralString(stringValueFromRaw(moduleSpecifier))
+	c.emit(loadDynamic("require"))
+	c.emit(call(1))
+	c.emit(pop) // Pop the result since basic import doesn't assign to variables yet
+}
+
+func (c *compiler) compileExportDeclaration(v *ast.ExportDeclaration) {
+	// For basic export compilation, we need to:
+	// 1. Create lexical bindings first (if needed)
+	// 2. Compile the declaration
+	// 3. Set up module.exports or exports object
+	
+	if v.Declaration != nil {
+		// Compile the declaration (e.g., export const x = 1;)
+		// Note: lexical bindings are now created during the setup phase in compileLexicalDeclarations
+		c.compileStatement(v.Declaration, false)
+		
+		// For basic support, we'll handle specific declaration types
+		switch decl := v.Declaration.(type) {
+		case *ast.VariableStatement:
+			// Handle: export var x = 1;
+			for _, binding := range decl.List {
+				if id, ok := binding.Target.(*ast.Identifier); ok {
+					// Add to exports: exports.x = x
+					c.emit(loadDynamic("exports"))
+					c.emit(loadDynamic(id.Name))
+					c.emit(setProp(unistring.String(id.Name)))
+				}
+			}
+		case *ast.LexicalDeclaration:
+			// Handle: export const x = 1; or export let x = 1;
+			for _, binding := range decl.List {
+				if _, ok := binding.Target.(*ast.Identifier); ok {
+					// For now, just compile the declaration - module system will handle exports
+					// TODO: Implement proper module exports
+					// This at least verifies the lexical binding compilation works
+				}
+			}
+		case *ast.FunctionDeclaration:
+			// Handle: export function foo() {}
+			name := decl.Function.Name.Name
+			c.emit(loadDynamic("exports"))
+			c.emit(loadDynamic(name))
+			c.emit(setProp(unistring.String(name)))
+		}
+	}
+	
+	// TODO: Handle export specifiers and re-exports
+	// For now, this provides basic export functionality
 }
