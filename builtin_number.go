@@ -179,9 +179,23 @@ func (r *Runtime) number_isInteger(call FunctionCall) Value {
 }
 
 func (r *Runtime) number_isNaN(call FunctionCall) Value {
-	if f, ok := call.Argument(0).(valueFloat); ok && math.IsNaN(float64(f)) {
-		return valueTrue
+	arg := call.Argument(0)
+	
+	// Number.isNaN should only return true for actual NaN values
+	// It should NOT perform type coercion like the global isNaN()
+	switch v := arg.(type) {
+	case valueFloat:
+		if math.IsNaN(float64(v)) {
+			return valueTrue
+		}
+	case valueInt:
+		// Integers can never be NaN
+		return valueFalse
+	default:
+		// Non-number types are not NaN according to Number.isNaN
+		return valueFalse
 	}
+	
 	return valueFalse
 }
 
