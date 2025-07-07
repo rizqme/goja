@@ -9,9 +9,9 @@ node types are concerned) and may change in the future.
 package ast
 
 import (
-	"github.com/dop251/goja/file"
-	"github.com/dop251/goja/token"
-	"github.com/dop251/goja/unistring"
+	"github.com/rizqme/gode/goja/file"
+	"github.com/rizqme/gode/goja/token"
+	"github.com/rizqme/gode/goja/unistring"
 )
 
 type PropertyKind string
@@ -48,6 +48,17 @@ type (
 	Binding struct {
 		Target      BindingTarget
 		Initializer Expression
+	}
+
+	ImportSpecifier struct {
+		Local    *Identifier
+		Imported *Identifier
+		IsDefault bool
+	}
+
+	ExportSpecifier struct {
+		Local    *Identifier
+		Exported *Identifier
 	}
 
 	Pattern interface {
@@ -488,6 +499,20 @@ type (
 	ClassDeclaration struct {
 		Class *ClassLiteral
 	}
+
+	ImportDeclaration struct {
+		Import     file.Idx
+		Specifiers []ImportSpecifier
+		Source     *StringLiteral
+	}
+
+	ExportDeclaration struct {
+		Export      file.Idx
+		Declaration Statement
+		Specifiers  []ExportSpecifier
+		Source      *StringLiteral
+		IsDefault   bool
+	}
 )
 
 // _statementNode
@@ -516,6 +541,8 @@ func (*WithStatement) _statementNode()       {}
 func (*LexicalDeclaration) _statementNode()  {}
 func (*FunctionDeclaration) _statementNode() {}
 func (*ClassDeclaration) _statementNode()    {}
+func (*ImportDeclaration) _statementNode()   {}
+func (*ExportDeclaration) _statementNode()   {}
 
 // =========== //
 // Declaration //
@@ -704,6 +731,8 @@ func (self *WithStatement) Idx0() file.Idx       { return self.With }
 func (self *LexicalDeclaration) Idx0() file.Idx  { return self.Idx }
 func (self *FunctionDeclaration) Idx0() file.Idx { return self.Function.Idx0() }
 func (self *ClassDeclaration) Idx0() file.Idx    { return self.Class.Idx0() }
+func (self *ImportDeclaration) Idx0() file.Idx   { return self.Import }
+func (self *ExportDeclaration) Idx0() file.Idx   { return self.Export }
 func (self *Binding) Idx0() file.Idx             { return self.Target.Idx0() }
 
 func (self *ForLoopInitializerExpression) Idx0() file.Idx  { return self.Expression.Idx0() }
@@ -819,6 +848,16 @@ func (self *WithStatement) Idx1() file.Idx       { return self.Body.Idx1() }
 func (self *LexicalDeclaration) Idx1() file.Idx  { return self.List[len(self.List)-1].Idx1() }
 func (self *FunctionDeclaration) Idx1() file.Idx { return self.Function.Idx1() }
 func (self *ClassDeclaration) Idx1() file.Idx    { return self.Class.Idx1() }
+func (self *ImportDeclaration) Idx1() file.Idx   { return self.Source.Idx1() }
+func (self *ExportDeclaration) Idx1() file.Idx {
+	if self.Source != nil {
+		return self.Source.Idx1()
+	}
+	if self.Declaration != nil {
+		return self.Declaration.Idx1()
+	}
+	return self.Export + 6
+}
 func (self *Binding) Idx1() file.Idx {
 	if self.Initializer != nil {
 		return self.Initializer.Idx1()

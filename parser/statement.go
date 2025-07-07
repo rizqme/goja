@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dop251/goja/ast"
-	"github.com/dop251/goja/file"
-	"github.com/dop251/goja/token"
+	"github.com/rizqme/gode/goja/ast"
+	"github.com/rizqme/gode/goja/file"
+	"github.com/rizqme/gode/goja/token"
 	"github.com/go-sourcemap/sourcemap"
 )
 
@@ -87,6 +87,10 @@ func (self *_parser) parseStatement() ast.Statement {
 		return &ast.ClassDeclaration{
 			Class: self.parseClass(true),
 		}
+	case token.IMPORT:
+		return self.parseImportStatement()
+	case token.EXPORT:
+		return self.parseExportStatement()
 	case token.SWITCH:
 		return self.parseSwitchStatement()
 	case token.RETURN:
@@ -1074,5 +1078,45 @@ func (self *_parser) nextStatement() {
 			return
 		}
 		self.next()
+	}
+}
+
+func (self *_parser) parseImportStatement() ast.Statement {
+	idx := self.expect(token.IMPORT)
+	
+	// For now, create a basic import declaration that requires a string literal
+	if self.token != token.STRING {
+		self.errorUnexpectedToken(self.token)
+		return &ast.BadStatement{From: idx, To: self.idx}
+	}
+	
+	source := &ast.StringLiteral{
+		Idx:     self.idx,
+		Literal: self.literal,
+		Value:   self.parsedLiteral,
+	}
+	self.next()
+	
+	self.semicolon()
+	
+	return &ast.ImportDeclaration{
+		Import:     idx,
+		Specifiers: []ast.ImportSpecifier{}, // Empty for now
+		Source:     source,
+	}
+}
+
+func (self *_parser) parseExportStatement() ast.Statement {
+	idx := self.expect(token.EXPORT)
+	
+	// For now, just parse export statements with declarations
+	declaration := self.parseStatement()
+	
+	return &ast.ExportDeclaration{
+		Export:      idx,
+		Declaration: declaration,
+		Specifiers:  []ast.ExportSpecifier{}, // Empty for now
+		Source:      nil,
+		IsDefault:   false,
 	}
 }

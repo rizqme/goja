@@ -1146,46 +1146,14 @@ func (c *compiler) compileImportDeclaration(v *ast.ImportDeclaration) {
 }
 
 func (c *compiler) compileExportDeclaration(v *ast.ExportDeclaration) {
-	// For basic export compilation, we need to:
-	// 1. Create lexical bindings first (if needed)
-	// 2. Compile the declaration
-	// 3. Set up module.exports or exports object
+	// For basic export compilation, just compile the declaration
+	// The module wrapper can handle exports later
 	
 	if v.Declaration != nil {
-		// Compile the declaration (e.g., export const x = 1;)
-		// Note: lexical bindings are now created during the setup phase in compileLexicalDeclarations
+		// Simply compile the declaration normally
 		c.compileStatement(v.Declaration, false)
-		
-		// For basic support, we'll handle specific declaration types
-		switch decl := v.Declaration.(type) {
-		case *ast.VariableStatement:
-			// Handle: export var x = 1;
-			for _, binding := range decl.List {
-				if id, ok := binding.Target.(*ast.Identifier); ok {
-					// Add to exports: exports.x = x
-					c.emit(loadDynamic("exports"))
-					c.emit(loadDynamic(id.Name))
-					c.emit(setProp(unistring.String(id.Name)))
-				}
-			}
-		case *ast.LexicalDeclaration:
-			// Handle: export const x = 1; or export let x = 1;
-			for _, binding := range decl.List {
-				if _, ok := binding.Target.(*ast.Identifier); ok {
-					// For now, just compile the declaration - module system will handle exports
-					// TODO: Implement proper module exports
-					// This at least verifies the lexical binding compilation works
-				}
-			}
-		case *ast.FunctionDeclaration:
-			// Handle: export function foo() {}
-			name := decl.Function.Name.Name
-			c.emit(loadDynamic("exports"))
-			c.emit(loadDynamic(name))
-			c.emit(setProp(unistring.String(name)))
-		}
 	}
 	
-	// TODO: Handle export specifiers and re-exports
-	// For now, this provides basic export functionality
+	// TODO: Implement proper export handling with module namespace
+	// For now, this provides basic syntax support
 }

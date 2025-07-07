@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dop251/goja/ast"
-	"github.com/dop251/goja/file"
-	"github.com/dop251/goja/token"
-	"github.com/dop251/goja/unistring"
+	"github.com/rizqme/gode/goja/ast"
+	"github.com/rizqme/gode/goja/file"
+	"github.com/rizqme/gode/goja/token"
+	"github.com/rizqme/gode/goja/unistring"
 )
 
 func firstErr(err error) error {
@@ -53,6 +53,37 @@ func TestParseFile(t *testing.T) {
 
 		_, err = ParseFile(nil, "", `/(?!def)abc/; return`, IgnoreRegExpErrors)
 		is(err, "(anonymous): Line 1:15 Illegal return statement")
+	})
+}
+
+func TestParseImportExport(t *testing.T) {
+	tt(t, func() {
+		test := func(source string, chk interface{}) *ast.Program {
+			_, program, err := testParse(source)
+			is(firstErr(err), chk)
+			return program
+		}
+
+		// Test basic import statement parsing
+		program := test(`import "./module.js";`, nil)
+		is(len(program.Body), 1)
+		importStmt := program.Body[0].(*ast.ImportDeclaration)
+		is(importStmt.Source.Value.String(), "./module.js")
+		is(len(importStmt.Specifiers), 0) // Basic implementation has no specifiers
+
+		// Test basic export statement parsing
+		program = test(`export const x = 1;`, nil)
+		is(len(program.Body), 1)
+		exportStmt := program.Body[0].(*ast.ExportDeclaration)
+		is(exportStmt.Declaration != nil, true)
+		is(exportStmt.IsDefault, false)
+		
+		// Test import parsing errors
+		test("import", "(anonymous): Line 1:7 Unexpected end of input")
+		test("import 123", "(anonymous): Line 1:8 Unexpected number")
+		
+		// Test export parsing errors  
+		test("export", "(anonymous): Line 1:7 Unexpected end of input")
 	})
 }
 
@@ -429,17 +460,17 @@ func TestParserErr(t *testing.T) {
 			test("abc.enum = 1", nil)
 			test("var enum;", "(anonymous): Line 1:5 Unexpected reserved word")
 
-			test("export", "(anonymous): Line 1:1 Unexpected reserved word")
+			test("export", "(anonymous): Line 1:7 Unexpected end of input")
 			test("abc.export = 1", nil)
-			test("var export;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test("var export;", "(anonymous): Line 1:5 Unexpected token export")
 
 			test("extends", "(anonymous): Line 1:1 Unexpected token extends")
 			test("abc.extends = 1", nil)
 			test("var extends;", "(anonymous): Line 1:5 Unexpected token extends")
 
-			test("import", "(anonymous): Line 1:1 Unexpected reserved word")
+			test("import", "(anonymous): Line 1:7 Unexpected end of input")
 			test("abc.import = 1", nil)
-			test("var import;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test("var import;", "(anonymous): Line 1:5 Unexpected token import")
 
 			test("super", "(anonymous): Line 1:1 'super' keyword unexpected here")
 			test("abc.super = 1", nil)
@@ -454,7 +485,7 @@ func TestParserErr(t *testing.T) {
 			test("{a: 1,}", "(anonymous): Line 1:7 Unexpected token }")
 			test("{a: 1, b: 2}", "(anonymous): Line 1:9 Unexpected token :")
 			test("{a: 1, b: 2,}", "(anonymous): Line 1:9 Unexpected token :")
-			test(`let f = () => new import('');`, "(anonymous): Line 1:19 Unexpected reserved word")
+			test(`let f = () => new import('');`, "(anonymous): Line 1:19 Unexpected token import")
 
 		}
 

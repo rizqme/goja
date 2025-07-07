@@ -124,6 +124,8 @@ const (
 	FUNCTION
 	CONTINUE
 	DEBUGGER
+	IMPORT
+	EXPORT
 
 	INSTANCEOF
 
@@ -241,6 +243,8 @@ var token2string = [...]string{
 	FUNCTION:                    "function",
 	CONTINUE:                    "continue",
 	DEBUGGER:                    "debugger",
+	IMPORT:                      "import",
+	EXPORT:                      "export",
 	INSTANCEOF:                  "instanceof",
 }
 
@@ -337,15 +341,13 @@ var keywordTable = map[string]_keyword{
 		futureKeyword: true,
 	},
 	"export": {
-		token:         KEYWORD,
-		futureKeyword: true,
+		token: EXPORT,
 	},
 	"extends": {
 		token: EXTENDS,
 	},
 	"import": {
-		token:         KEYWORD,
-		futureKeyword: true,
+		token: IMPORT,
 	},
 	"super": {
 		token: SUPER,

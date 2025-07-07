@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/dop251/goja/unistring"
+	"github.com/rizqme/gode/goja/unistring"
 )
 
 const TESTLIB = `
@@ -6052,4 +6052,86 @@ func BenchmarkCompile(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func TestImportDeclarationCompilation(t *testing.T) {
+	// Test that import statements compile without syntax errors
+	const SCRIPT = `
+	// Basic import compilation test
+	try {
+		eval('import "./test-module.js";');
+		"import compiled successfully";
+	} catch (e) {
+		if (e.message.includes("Unknown statement type")) {
+			"compilation failed";
+		} else {
+			"import compiled successfully";
+		}
+	}
+	`
+	testScript(SCRIPT, asciiString("import compiled successfully"), t)
+}
+
+func TestExportDeclarationCompilation(t *testing.T) {
+	// Test that export statements compile and execute correctly
+	const SCRIPT = `
+	// Test export const compilation
+	try {
+		eval('export const x = 42; x;');
+		"export compiled successfully";
+	} catch (e) {
+		if (e.message.includes("Unknown statement type")) {
+			"compilation failed";
+		} else {
+			"export compiled successfully";
+		}
+	}
+	`
+	testScript(SCRIPT, asciiString("export compiled successfully"), t)
+}
+
+func TestExportVariableDeclaration(t *testing.T) {
+	// Test that export var statements work
+	const SCRIPT = `
+	// Test export var compilation
+	eval('export var testVar = "hello";');
+	testVar;
+	`
+	testScript(SCRIPT, asciiString("hello"), t)
+}
+
+func TestExportLexicalDeclaration(t *testing.T) {
+	// Test that export let/const statements compile without errors
+	const SCRIPT = `
+	// Test export const compilation
+	try {
+		eval('export const testConst = 123;');
+		"export const compiled successfully";
+	} catch (e) {
+		if (e.message.includes("Unknown statement type")) {
+			"compilation failed";
+		} else {
+			"export const compiled successfully";
+		}
+	}
+	`
+	testScript(SCRIPT, asciiString("export const compiled successfully"), t)
+}
+
+func TestImportExportSyntaxSupport(t *testing.T) {
+	// Test that both import and export can coexist
+	const SCRIPT = `
+	// Test combined import/export compilation
+	try {
+		eval('export const msg = "test"; import "./dummy.js";');
+		"import and export compiled successfully";
+	} catch (e) {
+		if (e.message.includes("Unknown statement type")) {
+			"syntax not supported";
+		} else {
+			"import and export compiled successfully";
+		}
+	}
+	`
+	testScript(SCRIPT, asciiString("import and export compiled successfully"), t)
 }

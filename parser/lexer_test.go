@@ -3,9 +3,9 @@ package parser
 import (
 	"testing"
 
-	"github.com/dop251/goja/file"
-	"github.com/dop251/goja/token"
-	"github.com/dop251/goja/unistring"
+	"github.com/rizqme/gode/goja/file"
+	"github.com/rizqme/gode/goja/token"
+	"github.com/rizqme/gode/goja/unistring"
 )
 
 func TestLexer(t *testing.T) {
@@ -151,6 +151,27 @@ func TestLexer(t *testing.T) {
 			token.NUMBER, "1", 4,
 			token.ELSE, "else", 6,
 			token.EOF, "", 10,
+		)
+
+		test("import export",
+			token.IMPORT, "import", 1,
+			token.EXPORT, "export", 8,
+			token.EOF, "", 14,
+		)
+
+		test("import './module.js'",
+			token.IMPORT, "import", 1,
+			token.STRING, "'./module.js'", 8,
+			token.EOF, "", 21,
+		)
+
+		test("export const x = 1",
+			token.EXPORT, "export", 1,
+			token.CONST, "const", 8,
+			token.IDENTIFIER, "x", 14,
+			token.ASSIGN, "", 16,
+			token.NUMBER, "1", 18,
+			token.EOF, "", 19,
 		)
 
 		test("null",
