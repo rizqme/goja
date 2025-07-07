@@ -1131,29 +1131,119 @@ func (c *compiler) compileClassDeclaration(v *ast.ClassDeclaration) {
 }
 
 func (c *compiler) compileImportDeclaration(v *ast.ImportDeclaration) {
-	// For now, compile import statements as calls to require()
-	// This provides basic functionality while maintaining CommonJS compatibility
-	
 	// Get the module specifier
 	moduleSpecifier := v.Source.Value
 	
-	// Emit a call to require(moduleSpecifier)
-	// This works with Gode's existing module resolution system
-	c.emitLiteralString(stringValueFromRaw(moduleSpecifier))
-	c.emit(loadDynamic("require"))
-	c.emit(call(1))
-	c.emit(pop) // Pop the result since basic import doesn't assign to variables yet
+	// If no specifiers, it's a simple import for side effects only
+	if len(v.Specifiers) == 0 {
+		// Emit a call to require(moduleSpecifier)
+		c.emit(loadUndef)                                         // Push undefined as 'this'
+		c.emit(loadDynamic("require"))                           // Push require function
+		c.emitLiteralString(stringValueFromRaw(moduleSpecifier)) // Push module specifier argument
+		c.emit(call(1))                                          // Call require with 1 argument
+		c.emit(pop)                                              // Pop the result since it's not used
+		return
+	}
+	
+	// For imports with specifiers, we need to:
+	// 1. Call require() to get the module object
+	// 2. Extract the needed exports and bind them to variables
+	
+	// First, load the module
+	c.emit(loadUndef)                                         // Push undefined as 'this'
+	c.emit(loadDynamic("require"))                           // Push require function
+	c.emitLiteralString(stringValueFromRaw(moduleSpecifier)) // Push module specifier argument
+	c.emit(call(1))                                          // Call require with 1 argument
+	// Module object is now on the stack
+	
+	// Process each import specifier
+	for _, spec := range v.Specifiers {
+		c.emit(dup) // Duplicate the module object for each binding
+		
+		if spec.IsDefault {
+			// Default import: import defaultName from "module"
+			// Access module.default or just use the module object itself
+			c.emitLiteralString(stringValueFromRaw("default"))
+			c.emit(getElem)
+			// If module.default is undefined, use the module object itself (CommonJS style)
+			c.emit(dup)
+			c.emit(loadUndef)
+			c.emit(op_strict_eq)
+			jump := len(c.p.code)
+			c.emit(nil) // Placeholder for jneP
+			c.emit(pop) // Pop the undefined default
+			c.emit(dup) // Use the module object instead
+			c.p.code[jump] = jneP(len(c.p.code) - jump)
+		} else if spec.Imported.Name == "*" {
+			// Namespace import: import * as Utils from "module"
+			// Use the entire module object
+			// Module object is already on the stack
+		} else {
+			// Named import: import { name } from "module"
+			c.emitLiteralString(stringValueFromRaw(spec.Imported.Name))
+			c.emit(getElem)
+		}
+		
+		// Bind to local variable
+		binding, _ := c.scope.bindNameLexical(spec.Local.Name, true, int(spec.Local.Idx)-1)
+		binding.emitSet()
+	}
+	
+	// Pop the original module object
+	c.emit(pop)
 }
 
 func (c *compiler) compileExportDeclaration(v *ast.ExportDeclaration) {
-	// For basic export compilation, just compile the declaration
-	// The module wrapper can handle exports later
-	
+	// ES6 export support - compile declaration and collect exports
 	if v.Declaration != nil {
-		// Simply compile the declaration normally
+		// Compile the declaration normally first (creates the variable)
 		c.compileStatement(v.Declaration, false)
+		
+		// Collect exports based on declaration type
+		switch decl := v.Declaration.(type) {
+		case *ast.VariableStatement:
+			// Handle: export var name = value
+			c.handleExportBindings(decl.List)
+		case *ast.LexicalDeclaration:
+			// Handle: export const/let name = value
+			c.handleExportBindings(decl.List)
+		case *ast.FunctionDeclaration:
+			// Handle: export function name() { }
+			if decl.Function != nil && decl.Function.Name != nil {
+				c.handleSingleExport(string(decl.Function.Name.Name))
+			}
+		}
 	}
+}
+
+func (c *compiler) handleExportBindings(bindings []*ast.Binding) {
+	c.ensureExportsObject()
 	
-	// TODO: Implement proper export handling with module namespace
-	// For now, this provides basic syntax support
+	for _, binding := range bindings {
+		if id, ok := binding.Target.(*ast.Identifier); ok {
+			c.addExport(string(id.Name))
+		}
+	}
+}
+
+func (c *compiler) handleSingleExport(name string) {
+	c.ensureExportsObject()
+	c.addExport(name)
+}
+
+func (c *compiler) ensureExportsObject() {
+	// Simply create/recreate __gode_exports as an empty object
+	// This avoids the ReferenceError issue with loadDynamic
+	c.emit(newObject)
+	c.emit(setGlobal("__gode_exports"))
+}
+
+func (c *compiler) addExport(name string) {
+	// Add name to __gode_exports with a placeholder value
+	// The actual value will be resolved at runtime by the module system
+	nameStr := unistring.String(name)
+	c.emit(loadDynamic("__gode_exports"))
+	c.emitLiteralString(stringValueFromRaw(nameStr))
+	c.emitLiteralString(stringValueFromRaw(nameStr)) // Store the variable name as the value
+	c.emit(setElem)
 }

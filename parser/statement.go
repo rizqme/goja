@@ -1084,30 +1084,141 @@ func (self *_parser) nextStatement() {
 func (self *_parser) parseImportStatement() ast.Statement {
 	idx := self.expect(token.IMPORT)
 	
-	// For now, create a basic import declaration that requires a string literal
-	if self.token != token.STRING {
-		self.errorUnexpectedToken(self.token)
-		return &ast.BadStatement{From: idx, To: self.idx}
-	}
+	var specifiers []ast.ImportSpecifier
+	var source *ast.StringLiteral
 	
-	source := &ast.StringLiteral{
-		Idx:     self.idx,
-		Literal: self.literal,
-		Value:   self.parsedLiteral,
+	// Handle different import patterns
+	if self.token == token.STRING {
+		// Simple import: import "module"
+		source = &ast.StringLiteral{
+			Idx:     self.idx,
+			Literal: self.literal,
+			Value:   self.parsedLiteral,
+		}
+		self.next()
+	} else {
+		// Complex import patterns
+		
+		// Check for default import: import defaultName
+		if self.token == token.IDENTIFIER {
+			defaultName := self.parseIdentifier()
+			specifiers = append(specifiers, ast.ImportSpecifier{
+				Local:     defaultName,
+				Imported:  defaultName, // For default imports, local == imported
+				IsDefault: true,
+			})
+			
+			// Check for comma (mixed imports)
+			if self.token == token.COMMA {
+				self.next()
+			}
+		}
+		
+		// Check for namespace import: * as name
+		if self.token == token.MULTIPLY {
+			self.next()
+			if self.token != token.AS {
+				self.errorUnexpectedToken(self.token)
+				return &ast.BadStatement{From: idx, To: self.idx}
+			}
+			self.next()
+			if self.token != token.IDENTIFIER {
+				self.errorUnexpectedToken(self.token)
+				return &ast.BadStatement{From: idx, To: self.idx}
+			}
+			namespaceName := self.parseIdentifier()
+			// Use a special marker for namespace imports
+			specifiers = append(specifiers, ast.ImportSpecifier{
+				Local:     namespaceName,
+				Imported:  &ast.Identifier{Name: "*", Idx: namespaceName.Idx}, // Special case for namespace
+				IsDefault: false,
+			})
+		} else if self.token == token.LEFT_BRACE {
+			// Named imports: { name1, name2, name3 as alias }
+			self.next() // consume {
+			
+			for self.token != token.RIGHT_BRACE && self.token != token.EOF {
+				if self.token != token.IDENTIFIER {
+					self.errorUnexpectedToken(self.token)
+					return &ast.BadStatement{From: idx, To: self.idx}
+				}
+				
+				imported := self.parseIdentifier()
+				local := imported // Default: same name
+				
+				// Check for alias: name as alias
+				if self.token == token.AS {
+					self.next()
+					if self.token != token.IDENTIFIER {
+						self.errorUnexpectedToken(self.token)
+						return &ast.BadStatement{From: idx, To: self.idx}
+					}
+					local = self.parseIdentifier()
+				}
+				
+				specifiers = append(specifiers, ast.ImportSpecifier{
+					Local:     local,
+					Imported:  imported,
+					IsDefault: false,
+				})
+				
+				if self.token == token.COMMA {
+					self.next()
+				} else if self.token != token.RIGHT_BRACE {
+					self.errorUnexpectedToken(self.token)
+					return &ast.BadStatement{From: idx, To: self.idx}
+				}
+			}
+			
+			if self.token != token.RIGHT_BRACE {
+				self.errorUnexpectedToken(self.token)
+				return &ast.BadStatement{From: idx, To: self.idx}
+			}
+			self.next() // consume }
+		}
+		
+		// Expect 'from' keyword
+		if self.token != token.IDENTIFIER || self.literal != "from" {
+			self.errorUnexpectedToken(self.token)
+			return &ast.BadStatement{From: idx, To: self.idx}
+		}
+		self.next()
+		
+		// Parse source module
+		if self.token != token.STRING {
+			self.errorUnexpectedToken(self.token)
+			return &ast.BadStatement{From: idx, To: self.idx}
+		}
+		
+		source = &ast.StringLiteral{
+			Idx:     self.idx,
+			Literal: self.literal,
+			Value:   self.parsedLiteral,
+		}
+		self.next()
 	}
-	self.next()
 	
 	self.semicolon()
 	
 	return &ast.ImportDeclaration{
 		Import:     idx,
-		Specifiers: []ast.ImportSpecifier{}, // Empty for now
+		Specifiers: specifiers,
 		Source:     source,
 	}
 }
 
 func (self *_parser) parseExportStatement() ast.Statement {
 	idx := self.expect(token.EXPORT)
+	
+	// Check for invalid export syntax
+	if self.token == token.SEMICOLON {
+		self.error(self.idx, "Unexpected token %s after export", self.token.String())
+	}
+	
+	// Check for string literals which are invalid after export
+	if self.token == token.STRING {
+		self.error(self.idx, "Unexpected string literal after export")
+	}
 	
 	// For now, just parse export statements with declarations
 	declaration := self.parseStatement()

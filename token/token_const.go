@@ -137,6 +137,7 @@ const (
 	ASYNC
 	AWAIT
 	YIELD
+	AS
 )
 
 var token2string = [...]string{
@@ -246,6 +247,7 @@ var token2string = [...]string{
 	IMPORT:                      "import",
 	EXPORT:                      "export",
 	INSTANCEOF:                  "instanceof",
+	AS:                          "as",
 }
 
 var keywordTable = map[string]_keyword{
@@ -396,6 +398,9 @@ var keywordTable = map[string]_keyword{
 	},
 	"yield": {
 		token: YIELD,
+	},
+	"as": {
+		token: AS,
 	},
 	"false": {
 		token: BOOLEAN,
